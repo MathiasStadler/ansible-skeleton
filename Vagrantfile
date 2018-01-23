@@ -15,6 +15,7 @@ ENV["LC_ALL"] = "en_US.UTF-8"
 DEFAULT_BASE_BOX = 'bento/centos-7.4'
 
 VAGRANTFILE_API_VERSION = '2'
+VAGRANT_VERSION = "2.0.1"
 PROJECT_NAME = '/' + File.basename(Dir.getwd)
 
 # When set to `true`, Ansible will be forced to be run locally on the VM
@@ -26,6 +27,8 @@ vagranthosts = ENV['VAGRANTS_HOST'] ? ENV['VAGRANTS_HOST'] : 'vagrant-hosts.yml'
 hosts = YAML.load_file(File.join(__dir__, vagranthosts))
 
 # {{{ Helper functions
+
+Vagrant.require_version ">= #{VAGRANT_VERSION}"
 
 def provision_ansible(config, host)
   if run_locally?
@@ -125,10 +128,17 @@ def forwarded_ports(vm, host)
   end
 end
 
+def set_keys_to_known_host(vm, host)
+
+  $stdout.print "Ruby language\n"
+exit 1
+end 
+
 # }}}
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  config.ssh.insert_key = false
+  config.ssh.insert_key = true
+  config.ssh.paranoid = true
   hosts.each do |host|
     config.vm.define host['name'] do |node|
       node.vm.box = host['box'] ||= DEFAULT_BASE_BOX
@@ -136,16 +146,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
       node.vm.hostname = host['name']
       node.vm.network :private_network, network_options(host)
-      custom_synced_folders(node.vm, host)
-      shell_provisioners_always(node.vm, host)
-      forwarded_ports(node.vm, host)
+      set_keys_to_known_host(node.vm, host)
+      # custom_synced_folders(node.vm, host)
+      # shell_provisioners_always(node.vm, host)
+      # forwarded_ports(node.vm, host)
 
       node.vm.provider :virtualbox do |vb|
         # WARNING: if the name of the current directory is the same as the
         # host name, this will fail.
         vb.customize ['modifyvm', :id, '--groups', PROJECT_NAME]
       end
-      provision_ansible(config, host)
+      #provision_ansible(config, host)
     end
   end
 end
