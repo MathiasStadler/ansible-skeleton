@@ -7,6 +7,8 @@
 # See https://github.com/bertvv/ansible-skeleton/ for details
 require 'rbconfig'
 require 'yaml'
+#TODO old require 'pp' 
+require "time"
 
 # set default LC_ALL for all BOXES
 ENV["LC_ALL"] = "en_US.UTF-8"
@@ -128,13 +130,105 @@ def forwarded_ports(vm, host)
   end
 end
 
-def set_keys_to_known_host(vm, host)
+def tmp_set_keys_to_known_host(node, host)
 
-  $stdout.print "Ruby language\n"
-exit 1
+  #$stdout.print "node => #{ node.inspect}\n"
+  $stdout.print "host => #{host}\n"
+  $stdout.print "host => #{host['name']}\n"
+  id = %x(cat .vagrant/machines/#{host['name']}/virtualbox/id).chomp
+  $stdout.print "id => #{id}\n"
+
+
+  #$stdout.print "node.vm inspect => #{node.vm.inspect}\n"
+  #$stdout.print "node.id=> #{node.vm.id}\n"
+  #$stdout.print "node.vm.networks => #{node.vm.networks}\n"  
+  #$stdout.print "node.vm.name => #{node.vm.name}\n"
+  #get name of box
+  #$stdout.print "node.vm.box => #{node.vm.box}\n"
+  # $stdout.print "node.vm.box_version => #{node.vm.box_version.inspect}\n"
+
+  #$stdout.print "node => #{node.index_uuid}\n"
+
+  
 end 
 
+# copy file
+def self.copy_file(src, dest)
+  # w - Create an empty file for writing.
+  File.open(dest, 'w') { |f| f.write(File.read(src)) }
+end
+
+def remove_added_kezs_by_vagrant_project()
+
+  projecthome=Dir.getwd
+  $stdout.print "projecthome => #{projecthome}\n"
+
+  # TODO FIX unsafe
+  # make a copy to tmp for any case untiel next reboot of host
+  self.copy_file("#{userdir}/.ssh/known_hosts","/tmp/known_hosts_before_clean_up")
+
+  File.open("#{projecthome}/\.vagrant/known_hosts_add_by_vagrant", "r") do |file_handle|
+    file_handle.each_line do |server|
+      # delete kez
+        
+        #sed -i '/pattern/d' filename
+
+        # ruby replace in files
+    end
+  end
+end
+
+def set_keys_to_known_host(host)
+
+  #$stdout.print "node => #{ node.inspect}\n"
+  $stdout.print "host => #{host}\n"
+  $stdout.print "host => #{host['name']}\n"
+  id = %x(cat .vagrant/machines/#{host['name']}/virtualbox/id).chomp
+  $stdout.print "id => #{id}\n"
+
+# look fo forwarding of port 22 => ssh 
+forwarding_port_plain = %x(/usr/bin/VBoxManage showvminfo #{id} -machinereadable| grep Forwarding |grep 22)
+
+#TODO if port empty
+forwarding_port=forwarding_port_plain.split(",")[3]
+$stdout.print "forwarding_port => #{forwarding_port}\n"
+
+# pick up keys
+kez = %x(ssh-keyscan  -t ecdsa-sha2-nistp256 -H  -p #{forwarding_port} 127.0.0.1)
+$stdout.print "kez => #{kez}\n"
+
+
+# get user dir
+userdir= Dir.home
+$stdout.print "userdir => #{userdir}\n"
+
+
+# add kez to cat ~/.ssh/known_hosts
+
+open("#{userdir}/.ssh/known_hosts", 'a') do |f|
+  f << "#{kez}"
+end
+
+projecthome=Dir.getwd
+$stdout.print "projecthome => #{projecthome}\n"
+
+# save added keys
+# a+ - Open a file for reading and appending. The file is created if it does not exist. 
+open("#{projecthome}/\.vagrant/known_hosts_add_by_vagrant", 'a+') do |f|
+  f << "#{kez}"
+end
+
+end 
+
+
+
+
 # }}}
+
+
+# from here
+# config.vm.usable_port_range = 2200..2999
+# https://github.com/frapposelli/vagrant-vcloud/wiki/Increase-vagrant-default-port-range-for-larger-deploymentsy
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.ssh.insert_key = true
@@ -146,16 +240,22 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
       node.vm.hostname = host['name']
       node.vm.network :private_network, network_options(host)
-      set_keys_to_known_host(node.vm, host)
+      
+      
+      # TODO old set_keys_to_known_host(node, host)
       # custom_synced_folders(node.vm, host)
       # shell_provisioners_always(node.vm, host)
       # forwarded_ports(node.vm, host)
+
 
       node.vm.provider :virtualbox do |vb|
         # WARNING: if the name of the current directory is the same as the
         # host name, this will fail.
         vb.customize ['modifyvm', :id, '--groups', PROJECT_NAME]
+        #$stdout.print "vb => #{vb.inspect}\n"
+        
       end
+      set_keys_to_known_host(host)
       #provision_ansible(config, host)
     end
   end
