@@ -234,6 +234,18 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.ssh.insert_key = true
   config.ssh.paranoid = true
   hosts.each do |host|
+
+
+    # register triggers
+    config.trigger.after :destroy, :stdout => true, :force => true, :vm => host['name'] do
+      info " register triggers host['name'] #{host['name']}"
+      $stdout.print " register triggers host['name'] #{host['name']}\n"
+      # FileUtils.rm_rf Dir.glob("#{host_provisioned_dir}/*")
+    end
+
+
+
+
     config.vm.define host['name'] do |node|
       node.vm.box = host['box'] ||= DEFAULT_BASE_BOX
       node.vm.box_url = host['box_url'] if host.key? 'box_url'
@@ -242,7 +254,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       node.vm.network :private_network, network_options(host)
       
       
-      # TODO old set_keys_to_known_host(node, host)
+      
       # custom_synced_folders(node.vm, host)
       # shell_provisioners_always(node.vm, host)
       # forwarded_ports(node.vm, host)
@@ -255,7 +267,44 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         #$stdout.print "vb => #{vb.inspect}\n"
         
       end
-      set_keys_to_known_host(host)
+
+
+      [:up, :provision].each do |cmd|
+        config.trigger.before cmd, stdout: true do
+
+          $stdout.print "hook :up\n"
+          $stdout.print "host => #{host}\n"
+
+        end
+      end
+
+        [:destroy].each do |cmd|
+          config.trigger.before cmd, stdout: true do
+  
+            $stdout.print "hook before  :destroy #{cmd}\n"
+            $stdout.print "host => #{host}\n"
+  
+          end
+        end  
+
+        [:destroy].each do |cmd|
+          config.trigger.after cmd, stdout: true do
+  
+            $stdout.print "hook after  :destroy #{cmd}\n"
+            $stdout.print "host => #{host}\n"
+            $stdout.print "host => #{host}\n"
+
+  
+          end
+        end  
+
+        config.trigger.after :destroy, :stdout => true, :force => true, :vm => "worker" do
+          info "Removing provisioned directory contents:/*"
+          # FileUtils.rm_rf Dir.glob("#{host_provisioned_dir}/*")
+        end
+
+
+      #set_keys_to_known_host(host)
       #provision_ansible(config, host)
     end
   end
