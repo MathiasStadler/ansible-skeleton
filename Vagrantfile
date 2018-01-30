@@ -205,7 +205,7 @@ def remove_kez_added_by_vagrant(host, known_hosts)
         else
           info "No Key found for VM #{host['name']}"
           info 'Please remove by hand'
-      end
+        end
       end
     end
     # remove kez store
