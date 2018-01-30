@@ -5,13 +5,15 @@
 # `vagrant-hosts.yml`.
 #
 # See https://github.com/bertvv/ansible-skeleton/ for details
-require 'rbconfig'
+
 require 'yaml'
-# TODO: old require 'pp'
-require 'time'
 require 'open3'
-require 'shellwords'
-require 'base64'
+require 'log4r'
+
+# define logger
+logger = Log4r::Logger.new('vagrant::vagrantfile')
+logger.debug 'enable logger debug'
+logger.info 'enable logger info'
 
 # set default LC_ALL for all BOXES
 ENV['LC_ALL'] = 'en_US.UTF-8'
@@ -20,20 +22,21 @@ ENV['LC_ALL'] = 'en_US.UTF-8'
 DEFAULT_BASE_BOX = 'none/none_set_default_box_name'.freeze
 
 VAGRANTFILE_API_VERSION = '2'.freeze
+
 VAGRANT_VERSION = '2.0.1'.freeze
 
 PROJECT_NAME = '/' + File.basename(Dir.getwd)
 
 PROJECT_HOME = Dir.getwd
-$stdout.print "PROJECT_HOME => #{PROJECT_HOME}\n"
+logger.debug "PROJECT_HOME => #{PROJECT_HOME}\n"
 
 # set user dir
 USERDIR = Dir.home
-$stdout.print "USERDIR => #{USERDIR}\n"
+logger.debug "USERDIR => #{USERDIR}\n"
 
 # set path to known_hosts
 known_hosts = "#{USERDIR}/\.ssh/known_hosts"
-$stdout.print "known_hosts => #{known_hosts}\n"
+logger.debug "known_hosts => #{known_hosts}\n"
 
 # When set to `true`, Ansible will be forced to be run locally on the VM
 # instead of from the host machine (provided Ansible is installed).
@@ -145,31 +148,13 @@ def forwarded_ports(vm, host)
   end
 end
 
-def tmp_set_keys_to_known_host(_node, host)
-  # $stdout.print "node => #{ node.inspect}\n"
-  $stdout.print "host => #{host}\n"
-  $stdout.print "host => #{host['name']}\n"
-  id = `cat .vagrant/machines/#{host['name']}/virtualbox/id`.chomp
-  $stdout.print "id => #{id}\n"
-
-  # $stdout.print "node.vm inspect => #{node.vm.inspect}\n"
-  # $stdout.print "node.id=> #{node.vm.id}\n"
-  # $stdout.print "node.vm.networks => #{node.vm.networks}\n"
-  # $stdout.print "node.vm.name => #{node.vm.name}\n"
-  # get name of box
-  # $stdout.print "node.vm.box => #{node.vm.box}\n"
-  # $stdout.print "node.vm.box_version => #{node.vm.box_version.inspect}\n"
-
-  # $stdout.print "node => #{node.index_uuid}\n"
-end
-
 # copy file
 def self.copy_file(src, dest)
   # w - Create an empty file for writing.
   File.open(dest, 'w') { |f| f.write(File.read(src)) }
 end
 
-def remove_kez_added_by_vagrant(host, known_hosts)
+def remove_kez_added_by_vagrant(host, known_hosts, logger)
   info "Remove key from VM #{host['name']}"
 
   known_hosts_add_by_vagrant = "#{PROJECT_HOME}/\.vagrant/machines/#{host['name']}/known_hosts_add_by_vagrant"
@@ -180,59 +165,51 @@ def remove_kez_added_by_vagrant(host, known_hosts)
     File.open(known_hosts_add_by_vagrant, 'r') do |file_handle|
       file_handle.each_line do |server_kez|
         if server_kez.empty?
+          logger.warn "No Key found for VM #{host['name']}"
+          logger.warn 'Please remove by hand'
+        else
           # escaped string
-          # TODO old server_kez.gsub!('\\r', "\r")
           server_kez = server_kez.gsub!('|', '\\|')
           server_kez = server_kez.gsub!('/', '\\/')
-
-          # TODO: old
-          # decode_server_kez = Base64.decode64(server_kez)
-
           # delete kez
           info "Delete Key #{server_kez} from file ~/.ssh/known_hosts "
-
           command = "/bin/sed -i '/#{server_kez.chomp}/d' #{known_hosts}"
-
-          info "command =>#{command}"
+          logger.debug "command =>#{command}"
           # from here
           # https://stackoverflow.com/questions/6338908/ruby-difference-between-exec-system-and-x-or-backticks
           Open3.popen3(command) do |_stdin, stdout, stderr, _thread|
             # TODO: unused pid = thread.pid
             # TODO debug remove
-            info stdout.read.chomp # rubocop:disable
+            info stdout.read.chomp
             info stderr.read.chomp
           end
-        else
-          info "No Key found for VM #{host['name']}"
-          info 'Please remove by hand'
         end
       end
     end
     # remove kez store
     FileUtils.remove_file(known_hosts_add_by_vagrant, force = false)
-    info "File #{known_hosts_add_by_vagrant} was deleted"
+    logger.info "File #{known_hosts_add_by_vagrant} was deleted"
   else
-    info "File #{known_hosts_add_by_vagrant} already deleted"
+    logger.info "File #{known_hosts_add_by_vagrant} already deleted"
   end
 end
 
-def set_keys_to_known_host(host, known_hosts)
-  # $stdout.print "node => #{ node.inspect}\n"
-  $stdout.print "host => #{host}\n"
-  $stdout.print "host => #{host['name']}\n"
+def set_keys_to_known_host(host, known_hosts, logger)
+  logger.debug "host => #{host['name']}\n"
+
   id = `cat .vagrant/machines/#{host['name']}/virtualbox/id`.chomp
-  $stdout.print "id => #{id}\n"
+  logger.debug "id => #{id}\n"
 
   # look fo forwarding of port 22 => ssh
   forwarding_port_plain = `/usr/bin/VBoxManage showvminfo #{id} -machinereadable|grep Forwarding |grep 22`
 
   # TODO: if port empty
   forwarding_port = forwarding_port_plain.split(',')[3]
-  $stdout.print "forwarding_port => #{forwarding_port}\n"
+  logger.debug "forwarding_port => #{forwarding_port}\n"
 
   # pick up keys
   kez = `ssh-keyscan  -t ecdsa-sha2-nistp256 -H -p #{forwarding_port} 127.0.0.1`
-  $stdout.print "kez => #{kez}\n"
+  logger.debug "kez => #{kez}\n"
 
   # add kez to cat ~/.ssh/known_hosts
   open(known_hosts.to_s, 'a+') do |file_handler|
@@ -260,9 +237,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     [:up].each do |cmd|
       config.trigger.after cmd, stdout: true, force: true, vm: host['name'] do
         info " register triggers after  #{cmd} for  #{host['name']}"
-        $stdout.print " register triggers host['name'] #{host['name']}\n"
-        $stdout.print "known_host => #{known_hosts}\n"
-        set_keys_to_known_host(host, known_hosts)
+        logger.debug " register triggers host['name'] #{host['name']}\n"
+        logger.debug "known_host => #{known_hosts}\n"
+        set_keys_to_known_host(host, known_hosts, logger)
       end
     end
 
@@ -270,9 +247,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     %i[destroy].each do |cmd|
       config.trigger.after cmd, stdout: true, force: true, vm: host['name'] do
         info " register triggers after #{cmd} for VM #{host['name']}"
-        $stdout.print " register triggers host['name'] #{host['name']}\n"
-        $stdout.print "known_host => #{known_hosts}\n"
-        remove_kez_added_by_vagrant(host, known_hosts)
+        logger.debug " register triggers host['name'] #{host['name']}\n"
+        logger.debug "known_host => #{known_hosts}\n"
+        remove_kez_added_by_vagrant(host, known_hosts, logger)
       end
     end
 
@@ -294,7 +271,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         # WARNING: if the name of the current directory is the same as the
         # host name, this will fail.
         vb.customize ['modifyvm', :id, '--groups', PROJECT_NAME]
-        # $stdout.print "vb => #{vb.inspect}\n"
+        # logger.debug "vb => #{vb.inspect}\n"
       end
 
       # set_keys_to_known_host(host)
