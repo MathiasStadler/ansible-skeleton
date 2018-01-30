@@ -193,6 +193,7 @@ def remove_kez_added_by_vagrant(host,known_hosts)
         info "Delete Key #{server_kez} from file ~/.ssh/known_hosts "
        
       
+        
 command = "/bin/sed -i '/#{server_kez.chomp}/d' #{known_hosts}"
 
 info "command =>#{command}"
