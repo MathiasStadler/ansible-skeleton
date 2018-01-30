@@ -116,6 +116,7 @@ Initially, two hosts are defined as an example: `srv001` and `srv002`. If you wa
 ```ShellSession
 VAGRANTS_HOST='custom-vagrant-hosts.yml' vagrant up
 ```
+
 or
 
 ```ShellSession

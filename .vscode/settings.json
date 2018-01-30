@@ -1,0 +1,60 @@
+{
+    "cSpell.enabled": true,
+    "cSpell.enabledLanguageIds": [
+        "c",
+        "cpp",
+        "csharp",
+        "go",
+        "handlebars",
+        "javascript",
+        "javascriptreact",
+        "json",
+        "latex",
+        "markdown",
+        "php",
+        "plaintext",
+        "python",
+        "restructuredtext",
+        "ruby",
+        "text",
+        "typescript",
+        "typescriptreact",
+        "yml"
+    ],
+    // Basic settings: turn linter(s) on
+    "ruby.lint": {
+        "reek": true,
+        "rubocop": true,
+        "ruby": true, //Runs ruby -wc
+        "fasterer": true,
+        "debride": true,
+        "ruby-lint": true
+    },
+    "cSpell.words": [
+        "base",
+        "dhcp",
+        "ecdsa",
+        "forwarding",
+        "getwd",
+        "grep",
+        "gsub",
+        "intnet",
+        "keyscan",
+        "machinereadable",
+        "modifyvm",
+        "netmask",
+        "nistp",
+        "popen",
+        "provisioners",
+        "rbconfig",
+        "rsync",
+        "sha",
+        "shellwords",
+        "showvminfo",
+        "userdir",
+        "uuid",
+        "vagrantfile",
+        "vagranthosts",
+        "virtualbox"
+    ]
+}
