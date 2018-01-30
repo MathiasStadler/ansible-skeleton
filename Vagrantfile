@@ -170,43 +170,49 @@ def self.copy_file(src, dest)
 end
 
 def remove_kez_added_by_vagrant(host, known_hosts)
-  
+  info "Remove key from VM #{host['name']}"
+
   known_hosts_add_by_vagrant = "#{PROJECT_HOME}/\.vagrant/machines/#{host['name']}/known_hosts_add_by_vagrant"
 
-  # TODO: make path/file global
-  File.open(known_hosts_add_by_vagrant, 'a+') do |file_handle|
-    file_handle.each_line do |server_kez|
-      # escaped string
-      # TODO old server_kez.gsub!('\\r', "\r")
-      server_kez = server_kez.gsub!('|', '\\|')
-      server_kez = server_kez.gsub!('/', '\\/')
+  if File.exist?(known_hosts_add_by_vagrant)
 
-      # TODO: old
-      # decode_server_kez = Base64.decode64(server_kez)
+    # TODO: make path/file global
+    File.open(known_hosts_add_by_vagrant, 'r') do |file_handle|
+      file_handle.each_line do |server_kez|
+        if server_kez.empty?
+          # escaped string
+          # TODO old server_kez.gsub!('\\r', "\r")
+          server_kez = server_kez.gsub!('|', '\\|')
+          server_kez = server_kez.gsub!('/', '\\/')
 
-      # delete kez
-      info "Delete Key #{server_kez} from file ~/.ssh/known_hosts "
+          # TODO: old
+          # decode_server_kez = Base64.decode64(server_kez)
 
-      command = "/bin/sed -i '/#{server_kez.chomp}/d' #{known_hosts}"
+          # delete kez
+          info "Delete Key #{server_kez} from file ~/.ssh/known_hosts "
 
-      info "command =>#{command}"
-      # from here
-      # https://stackoverflow.com/questions/6338908/ruby-difference-between-exec-system-and-x-or-backticks
-      Open3.popen3(command) do |stdin, stdout, stderr, thread|
-        # TODO: unused pid = thread.pid
-        # TODO debug remove
-        info stdout.read.chomp
-        info stderr.read.chomp
+          command = "/bin/sed -i '/#{server_kez.chomp}/d' #{known_hosts}"
+
+          info "command =>#{command}"
+          # from here
+          # https://stackoverflow.com/questions/6338908/ruby-difference-between-exec-system-and-x-or-backticks
+          Open3.popen3(command) do |_stdin, stdout, stderr, _thread|
+            # TODO: unused pid = thread.pid
+            # TODO debug remove
+            info stdout.read.chomp # rubocop:disable
+            info stderr.read.chomp
+          end
+        else
+          info "No Key found for VM #{host['name']}"
+          info 'Please remove by hand'
       end
-
-      if File.exist?(known_hosts_add_by_vagrant)
-      # remove kez store
-      FileUtils.remove_file(known_hosts_add_by_vagrant, force = false)
-      info "File #{known_hosts_add_by_vagrant} was deleted"
-      else
-        info "File #{known_hosts_add_by_vagrant} already deleted"
       end
     end
+    # remove kez store
+    FileUtils.remove_file(known_hosts_add_by_vagrant, force = false)
+    info "File #{known_hosts_add_by_vagrant} was deleted"
+  else
+    info "File #{known_hosts_add_by_vagrant} already deleted"
   end
 end
 
@@ -218,8 +224,7 @@ def set_keys_to_known_host(host, known_hosts)
   $stdout.print "id => #{id}\n"
 
   # look fo forwarding of port 22 => ssh
-  forwarding_port_plain = `/usr/bin/VBoxManage showvminfo #{id} \ 
-  -machinereadable|grep Forwarding |grep 22`
+  forwarding_port_plain = `/usr/bin/VBoxManage showvminfo #{id} -machinereadable|grep Forwarding |grep 22`
 
   # TODO: if port empty
   forwarding_port = forwarding_port_plain.split(',')[3]
@@ -236,8 +241,8 @@ def set_keys_to_known_host(host, known_hosts)
 
   # save added keys
   # a+ - Open a file for reading and appending. The file is created if it does not exist.
-  open("#{PROJECT_HOME}/\.vagrant/machines/#{host['name']}/known_hosts_add_by_vagrant", 'a+') do |f|
-    f << kez.to_s
+  open("#{PROJECT_HOME}/\.vagrant/machines/#{host['name']}/known_hosts_add_by_vagrant", 'a+') do |file_handler|
+    file_handler << kez.to_s
   end
 end
 
@@ -264,7 +269,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # TODO: what is about  halt
     %i[destroy].each do |cmd|
       config.trigger.after cmd, stdout: true, force: true, vm: host['name'] do
-        info " register triggers after #{cmd} for  #{host['name']}"
+        info " register triggers after #{cmd} for VM #{host['name']}"
         $stdout.print " register triggers host['name'] #{host['name']}\n"
         $stdout.print "known_host => #{known_hosts}\n"
         remove_kez_added_by_vagrant(host, known_hosts)
@@ -290,33 +295,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         # host name, this will fail.
         vb.customize ['modifyvm', :id, '--groups', PROJECT_NAME]
         # $stdout.print "vb => #{vb.inspect}\n"
-      end
-
-      %i[up provision].each do |cmd|
-        config.trigger.before cmd, stdout: true do
-          $stdout.print "hook :up\n"
-          $stdout.print "host => #{host}\n"
-        end
-      end
-
-      [:destroy].each do |cmd|
-        config.trigger.before cmd, stdout: true do
-          $stdout.print "hook before  :destroy #{cmd}\n"
-          $stdout.print "host => #{host}\n"
-        end
-      end
-
-      [:destroy].each do |cmd|
-        config.trigger.after cmd, stdout: true do
-          $stdout.print "hook after  :destroy #{cmd}\n"
-          $stdout.print "host => #{host}\n"
-          $stdout.print "host => #{host}\n"
-        end
-      end
-
-      config.trigger.after :destroy, stdout: true, force: true, vm: 'worker' do
-        info 'Removing provisioned directory contents:/*'
-        # FileUtils.rm_rf Dir.glob("#{host_provisioned_dir}/*")
       end
 
       # set_keys_to_known_host(host)

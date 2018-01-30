@@ -1,0 +1,15 @@
+---
+# https://github.com/YorickPeterse/ruby-lint/blob/master/doc/configuration.md
+report_levels:
+  - warning
+  - error
+
+analysis_classes:
+  -  argument_amount
+  -  pedantics
+  -  shadowing_variables
+  #-  undefined_methods
+  #- 
+  -  undefined_variables
+  -  unused_variables
+  -  useless_equality_checks

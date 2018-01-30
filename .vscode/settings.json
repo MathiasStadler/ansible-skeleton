@@ -48,6 +48,7 @@
         "provisioners",
         "rbconfig",
         "rsync",
+        "rubocop",
         "sha",
         "shellwords",
         "showvminfo",
