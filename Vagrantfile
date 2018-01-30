@@ -127,8 +127,6 @@ def shell_provisioners_always(vm, host)
   end
 end
 
-# TODO: old delete export VAGRANTS_HOST='custom-vagrant-hosts.yml'
-
 # }}}
 
 # Adds forwarded ports to your vagrant machine
@@ -161,7 +159,6 @@ def remove_kez_added_by_vagrant(host, known_hosts, logger)
 
   if File.exist?(known_hosts_add_by_vagrant)
 
-    # TODO: make path/file global
     File.open(known_hosts_add_by_vagrant, 'r') do |file_handle|
       file_handle.each_line do |server_kez|
         if server_kez.empty?
@@ -172,16 +169,14 @@ def remove_kez_added_by_vagrant(host, known_hosts, logger)
           server_kez = server_kez.gsub!('|', '\\|')
           server_kez = server_kez.gsub!('/', '\\/')
           # delete kez
-          info "Delete Key #{server_kez} from file ~/.ssh/known_hosts "
+          logger.info "Delete Key #{server_kez} from file ~/.ssh/known_hosts"
           command = "/bin/sed -i '/#{server_kez.chomp}/d' #{known_hosts}"
-          logger.debug "command =>#{command}"
+          logger.info "command =>#{command}"
           # from here
           # https://stackoverflow.com/questions/6338908/ruby-difference-between-exec-system-and-x-or-backticks
           Open3.popen3(command) do |_stdin, stdout, stderr, _thread|
-            # TODO: unused pid = thread.pid
-            # TODO debug remove
-            info stdout.read.chomp
-            info stderr.read.chomp
+            logger.info "Stdout #{stdout.read.chomp}"
+            logger.info "Stderr #{info stderr.read.chomp}"
           end
         end
       end
@@ -202,8 +197,6 @@ def set_keys_to_known_host(host, known_hosts, logger)
 
   # look fo forwarding of port 22 => ssh
   forwarding_port_plain = `/usr/bin/VBoxManage showvminfo #{id} -machinereadable|grep Forwarding |grep 22`
-
-  # TODO: if port empty
   forwarding_port = forwarding_port_plain.split(',')[3]
   logger.debug "forwarding_port => #{forwarding_port}\n"
 
@@ -234,6 +227,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.ssh.paranoid = true
   hosts.each do |host|
     # register triggers
+    # vagrant up
     [:up].each do |cmd|
       config.trigger.after cmd, stdout: true, force: true, vm: host['name'] do
         info " register triggers after  #{cmd} for  #{host['name']}"
@@ -243,7 +237,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
     end
 
-    # TODO: what is about  halt
+    # vagrant destroy
     %i[destroy].each do |cmd|
       config.trigger.after cmd, stdout: true, force: true, vm: host['name'] do
         info " register triggers after #{cmd} for VM #{host['name']}"
@@ -253,6 +247,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
     end
 
+    # create vm
     config.vm.define host['name'] do |node|
       node.vm.box = host['box'] ||= DEFAULT_BASE_BOX
       node.vm.box_url = host['box_url'] if host.key? 'box_url'
@@ -262,7 +257,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       # disable install rsync
       config.vm.synced_folder '.', '/vagrant', disabled: true
 
-      # set_keys_to_known_host(host)
+      
       # custom_synced_folders(node.vm, host)
       # shell_provisioners_always(node.vm, host)
       # forwarded_ports(node.vm, host)
@@ -271,10 +266,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         # WARNING: if the name of the current directory is the same as the
         # host name, this will fail.
         vb.customize ['modifyvm', :id, '--groups', PROJECT_NAME]
-        # logger.debug "vb => #{vb.inspect}\n"
       end
-
-      # set_keys_to_known_host(host)
       # provision_ansible(config, host)
     end
   end
